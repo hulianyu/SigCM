@@ -1,3 +1,238 @@
+function [result] = ClusteringMeasure(Y, predY)
+% original version: Feiping Nie, 2010
+% output: ACC, NMI, Purity, ARI, Precision, Recall, F-score
+if size(Y,2) ~= 1
+    Y = Y';
+end
+if size(predY,2) ~= 1
+    predY = predY';
+end
+
+n = length(Y);
+
+uY = unique(Y);
+nclass = length(uY);
+Y0 = zeros(n,1);
+if nclass ~= max(Y)
+    for i = 1:nclass
+        Y0(Y == uY(i)) = i;
+    end
+    Y = Y0;
+end
+
+
+uY = unique(predY);
+nclass = length(uY);
+predY0 = zeros(n,1);
+if nclass ~= max(predY)
+    for i = 1:nclass
+        predY0(predY == uY(i)) = i;
+    end
+    predY = predY0;
+end
+
+
+Lidx = unique(Y); 
+classnum = length(Lidx);
+predLidx = unique(predY); 
+pred_classnum = length(predLidx);
+
+% purity
+correnum = 0;
+for ci = 1:pred_classnum
+    incluster = Y(predY == predLidx(ci));
+%     cnub = unique(incluster);
+%     inclunub = 0;
+%     for cnubi = 1:length(cnub)
+%         inclunub(cnubi) = length(find(incluster == cnub(cnubi)));
+%     end;
+    inclunub = hist(incluster, 1:max(incluster)); 
+    if isempty(inclunub) inclunub=0;end
+    correnum = correnum + max(inclunub);
+end
+Purity = correnum/length(predY);
+
+%if pred_classnum
+res = bestMap(Y, predY);
+
+% accuarcy
+ACC = length(find(Y == res))/length(Y);
+
+% NMI
+MIhat = MutualInfo(Y,res);
+
+% AR
+ARI = AdjustedRandIndex(Y, predY);
+
+%precision, recall and fscore
+%[~,macro] = micro_macro_PR(res, Y);
+[fscore,precision,recall]=compute_f(Y, predY);
+% result
+result = [ACC MIhat Purity ARI precision recall fscore];
+
+
+
+
+
+%%
+function [f,p,r] = compute_f(T,H)
+
+  if length(T) ~= length(H)
+    size(T)
+    size(H)
+  end
+  
+  N = length(T);
+  numT = 0;
+  numH = 0;
+  numI = 0;
+  for n=1:N
+    Tn = (T(n+1:end))==T(n);
+    Hn = (H(n+1:end))==H(n);
+    numT = numT + sum(Tn);
+    numH = numH + sum(Hn);
+    numI = numI + sum(Tn .* Hn);
+  end
+  p = 1;
+  r = 1;
+  f = 1;
+  if numH > 0
+    p = numI / numH;
+  end
+  if numT > 0
+    r = numI / numT;
+  end
+  if (p+r) == 0
+    f = 0;
+  else
+    f = 2 * p * r / (p + r);
+  end
+%%
+function [newL2, c] = bestMap(L1,L2)
+%bestmap: permute labels of L2 match L1 as good as possible
+%   [newL2] = bestMap(L1,L2);
+
+%===========    
+L1 = L1(:);
+L2 = L2(:);
+if size(L1) ~= size(L2)
+    error('size(L1) must == size(L2)');
+end
+L1 = L1 - min(L1) + 1;      %   min (L1) <- 1;
+L2 = L2 - min(L2) + 1;      %   min (L2) <- 1;
+%===========    make bipartition graph  ============
+nClass = max(max(L1), max(L2));
+G = zeros(nClass);
+for i=1:nClass
+    for j=1:nClass
+        G(i,j) = length(find(L1 == i & L2 == j));
+    end
+end
+%===========    assign with hungarian method    ======
+[c,~] = hungarian(-G);
+newL2 = zeros(nClass,1);
+for i=1:nClass
+    newL2(L2 == i) = c(i);
+end
+
+
+
+
+
+%%
+function MIhat = MutualInfo(L1,L2)
+%   mutual information
+
+%===========    
+L1 = L1(:);
+L2 = L2(:);
+if size(L1) ~= size(L2)
+    error('size(L1) must == size(L2)');
+end
+L1 = L1 - min(L1) + 1;      %   min (L1) <- 1;
+L2 = L2 - min(L2) + 1;      %   min (L2) <- 1;
+%===========    make bipartition graph  ============
+nClass = max(max(L1), max(L2));
+G = zeros(nClass);
+for i=1:nClass
+    for j=1:nClass
+        G(i,j) = length(find(L1 == i & L2 == j))+eps;
+    end
+end
+sumG = sum(G(:));
+%===========    calculate MIhat
+P1 = sum(G,2);  P1 = P1/sumG;
+P2 = sum(G,1);  P2 = P2/sumG;
+H1 = sum(-P1.*log2(P1));
+H2 = sum(-P2.*log2(P2));
+P12 = G/sumG;
+PPP = P12./repmat(P2,nClass,1)./repmat(P1,1,nClass);
+PPP(abs(PPP) < 1e-12) = 1;
+MI = sum(P12(:) .* log2(PPP(:)));
+MIhat = MI / max(H1,H2);
+%%%%%%%%%%%%%   why complex ?       %%%%%%%%
+MIhat = real(MIhat);
+
+
+
+%%
+function [AR,RI,MI,HI]=AdjustedRandIndex(c1,c2)
+%RANDINDEX - calculates Rand Indices to compare two partitions
+% ARI=RANDINDEX(c1,c2), where c1,c2 are vectors listing the 
+% class membership, returns the "Hubert & Arabie adjusted Rand index".
+% [AR,RI,MI,HI]=RANDINDEX(c1,c2) returns the adjusted Rand index, 
+% the unadjusted Rand index, "Mirkin's" index and "Hubert's" index.
+%
+% See L. Hubert and P. Arabie (1985) "Comparing Partitions" Journal of 
+% Classification 2:193-218
+
+%(C) David Corney (2000)   		D.Corney@cs.ucl.ac.uk
+
+if nargin < 2 || min(size(c1)) > 1 || min(size(c2)) > 1
+   error('RandIndex: Requires two vector arguments')
+   return
+end
+
+C=Contingency(c1,c2);	%form contingency matrix
+
+n=sum(sum(C));
+nis=sum(sum(C,2).^2);		%sum of squares of sums of rows
+njs=sum(sum(C,1).^2);		%sum of squares of sums of columns
+
+t1=nchoosek(n,2);		%total number of pairs of entities
+t2=sum(sum(C.^2));	%sum over rows & columnns of nij^2
+t3=.5*(nis+njs);
+
+%Expected index (for adjustment)
+nc=(n*(n^2+1)-(n+1)*nis-(n+1)*njs+2*(nis*njs)/n)/(2*(n-1));
+
+A=t1+t2-t3;		%no. agreements
+D=  -t2+t3;		%no. disagreements
+
+if t1==nc
+   AR=0;			%avoid division by zero; if k=1, define Rand = 0
+else
+   AR=(A-nc)/(t1-nc);		%adjusted Rand - Hubert & Arabie 1985
+end
+
+RI=A/t1;			%Rand 1971		%Probability of agreement
+MI=D/t1;			%Mirkin 1970	%p(disagreement)
+HI=(A-D)/t1;	%Hubert 1977	%p(agree)-p(disagree)
+
+function Cont=Contingency(Mem1,Mem2)
+
+if nargin < 2 || min(size(Mem1)) > 1 || min(size(Mem2)) > 1
+   error('Contingency: Requires two vector arguments')
+   return
+end
+
+Cont=zeros(max(Mem1),max(Mem2));
+
+for i = 1:length(Mem1)
+   Cont(Mem1(i),Mem2(i))=Cont(Mem1(i),Mem2(i))+1;
+end
+
+%%
 function [C,T]=hungarian(A)
 %HUNGARIAN Solve the Assignment problem using the Hungarian method.
 %
@@ -12,7 +247,7 @@ function [C,T]=hungarian(A)
 % Mathematical Software, 6(1):104-111, 1980.
 
 % v1.0  96-06-14. Niclas Borlin, niclas@cs.umu.se.
-%                 Department of Computing Science, Umeå University,
+%                 Department of Computing Science, Ume? University,
 %                 Sweden. 
 %                 All standard disclaimers apply.
 
@@ -62,7 +297,7 @@ while (U(n+1))
             
             % If there are more free zeros in row r and row r in not
             % yet marked as unexplored..
-            if (A(r,l)~=0 & RH(r)==0)
+            if (A(r,l)~=0 && RH(r)==0)
                 % Insert row r first in unexplored list.
                 RH(r)=RH(n+1);
                 RH(n+1)=r;
@@ -160,7 +395,7 @@ function A=hminired(A)
 
 % v1.0  96-06-13. Niclas Borlin, niclas@cs.umu.se.
 
-[m,n]=size(A);
+[~,n]=size(A);
 
 % Subtract column-minimum values from each column.
 colMin=min(A);
@@ -195,7 +430,7 @@ function [A,C,U]=hminiass(A)
 
 % v1.0  96-06-14. Niclas Borlin, niclas@cs.umu.se.
 
-[n,np1]=size(A);
+[n,~]=size(A);
 
 % Initalize return vectors.
 C=zeros(1,n);
@@ -349,7 +584,7 @@ while (1)
     % Find zero to be removed from zero list..
     
     % Find zero before this.
-    m=find(A(r,:)==-l);
+    m=A(r,:)==-l;
     
     % Link past this zero.
     A(r,m)=A(r,l);
@@ -377,7 +612,7 @@ while (1)
 end
 
 
-function [A,CH,RH]=hmreduce(A,CH,RH,LC,LR,SLC,SLR)
+function [A,CH,RH]=hmreduce(A,CH,RH,LC,LR,~,SLR)
 %HMREDUCE Reduce parts of cost matrix in the Hungerian method.
 %
 %[A,CH,RH]=hmreduce(A,CH,RH,LC,LR,SLC,SLR)
@@ -431,7 +666,7 @@ for j=c
             % Find last unassigned zero on row I.
             row=A(i,:);
             colsInList=-row(row<0);
-            if (length(colsInList)==0)
+            if (isempty(colsInList))
                 % No zeros in the list.
                 l=n+1;
             else
@@ -455,7 +690,7 @@ j=c(j);
 
 for k=1:length(i)
     % Find zero before this in this row.
-    lj=find(A(i(k),:)==-j(k));
+    lj=A(i(k),:)==-j(k);
     % Link past it.
     A(i(k),lj)=A(i(k),j(k));
     % Mark it as assigned.

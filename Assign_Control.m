@@ -6,7 +6,7 @@ numClu = size(sList,1);
 numOther = length(OtherClusters);
 pv_point = zeros(numClu,numOther);
 for kth = 1:length(OtherClusters)
-otherK = find(pi==OtherClusters(kth));
+otherK = pi==OtherClusters(kth);
 OtherS = X(otherK,:);
 % X_s = X(otherK,:);
 pvs = Other_single_point_fisher_exactG(X, sList, OtherS);

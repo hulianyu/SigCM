@@ -1,4 +1,4 @@
-function Plot_Promote_Bars(threeBars)
+function Plot_Promote_Bars(threeBars, customTitle)
 % Define horizontal axis labels
 rowNames = {'Ls', 'Lc', 'So', 'Zo', 'Ps', 'Hr', 'Ly', 'Hd', 'Sf', 'Pt', 'De', 'Hv', 'Bs', 'Ca', 'Bc', 'Mm', 'Tt', 'Ce'};
 
@@ -12,17 +12,19 @@ set(bh(3), 'FaceColor', [0.1, 0.1, 0.7]); % Set the third stack to dark blue
 
 % Customize the appearance of axes and labels
 set(gca, 'XTick', 1:length(rowNames), 'XTickLabel', rowNames, 'FontSize', 10, 'FontName', 'Arial');
-ylabel('%', 'FontSize', 12, 'FontName', 'Arial');
-legend('Better', 'Same', 'Worse', 'Location', 'best');
+ylabel('Percentage (%)', 'FontSize', 12, 'FontName', 'Arial');
+% Ensure the legend appears in the desired order and set the font to Arial
+% hLegend = legend([bh(1), bh(2), bh(3)], 'Better', 'Same', 'Worse', 'Location', 'best');
+% set(hLegend, 'FontName', 'Arial', 'FontSize', 10);
 % title('Cluster enhancement via outlier removal', 'FontSize', 14, 'FontName', 'Arial');
 % title('Cluster refinement via reassignment', 'FontSize', 14, 'FontName', 'Arial');
-
+title(customTitle, 'FontSize', 14, 'FontName', 'Arial');
 % Add values to each sub-bar
 for i = 1:size(threeBars, 1) % Iterate over each bar
     cumulativeHeight = 0; % Cumulative height
     for j = 1:size(threeBars, 2) % Iterate over each sub-bar
         height = threeBars(i, j);
-        if height ~= 0 % Display values only for non-zero heights
+        if height >= 5 % Only display values >= 5%
             cumulativeHeight = cumulativeHeight + height; % Update cumulative height
             x = bh(j).XEndPoints(i);
             y = cumulativeHeight - (height / 2); % Calculate the Y coordinate of the sub-bar midpoint
