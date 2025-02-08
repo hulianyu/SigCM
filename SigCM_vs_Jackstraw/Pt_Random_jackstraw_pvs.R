@@ -1,3 +1,4 @@
+source('jackstraw_cluster.R')
 # Dataset filenames and row names
 filename <- c('lenses', 'lung-cancer', 'soybean-small', 'zoo', 'dna-promoter',
               'hayes-roth', 'lymphography', 'heart-disease', 'solar-flare', 'primary-tumor',
@@ -62,7 +63,7 @@ for (I in 10:10) {
     
     # If result is NULL (i.e., an error occurred), append NA to all_pvs
     if (is.null(result)) {
-      all_pvs <- c(all_pvs, NA)
+      all_pvs <- all_pvs
     } else {
       # Otherwise, append the p-values to the all_pvs vector
       all_pvs <- c(all_pvs, result$p.F)
